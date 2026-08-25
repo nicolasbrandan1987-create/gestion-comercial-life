@@ -1207,7 +1207,29 @@ function gerRanking(zonaFiltro){
     <div class="kpi"><div class="num" style="color:var(--bad)">${rojo}</div><div class="lbl">Asesores en alerta</div></div>
   </div>`;
 
+  const explicacion = `
+  <details class="collapsible" style="margin-bottom:16px">
+    <summary>¿Qué es "Disciplina comercial" y cómo se calcula?</summary>
+    <p style="font-size:13px;color:var(--text);margin-top:10px">Es un puntaje de 0 a 100 que mide <b>si el supervisor está gestionando bien a su equipo</b> — no cuánto venden sus asesores. Se arma con 3 partes:</p>
+    <div class="grid grid-3" style="margin-top:10px">
+      <div class="info-card">
+        <b style="font-size:13px;color:var(--navy)">50% — % minuta esta semana</b>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:4px">De todos sus asesores, ¿con cuántos se reunió y cargó la minuta esta semana? Si se reunió con todos, este componente es 100%.</div>
+      </div>
+      <div class="info-card">
+        <b style="font-size:13px;color:var(--navy)">30% — % compromisos cumplidos</b>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:4px">De todos los compromisos que sus asesores asumieron en minutas anteriores, ¿cuántos se marcaron como "Cumplido" en el seguimiento?</div>
+      </div>
+      <div class="info-card">
+        <b style="font-size:13px;color:var(--navy)">20% — % con mejora de actividad</b>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:4px">De sus asesores con al menos 2 semanas cargadas, ¿a cuántos les subió la actividad (llamados, entrevistas, prospección) de una semana a la siguiente?</div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:12px">Por qué se arma así: cargar minutas no sirve de nada si los compromisos no se cumplen, y cumplir compromisos no sirve si la actividad del asesor no mejora. El puntaje castiga a un supervisor que solo "completa el formulario" sin que eso cambie nada en su equipo.</p>
+  </details>`;
+
   const table = `
+  ${explicacion}
   <div class="card"><div class="table-wrap"><table>
     <thead><tr><th>Supervisor</th><th>Asesores</th><th>% minuta esta semana</th><th>% compromisos cumplidos</th><th>% con mejora de actividad</th><th>En alerta</th><th>Disciplina comercial</th></tr></thead>
     <tbody>
@@ -1222,7 +1244,6 @@ function gerRanking(zonaFiltro){
       </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--muted)">Sin supervisores cargados</td></tr>`}
     </tbody>
   </table></div>
-  <div style="font-size:11.5px;color:var(--muted);padding:10px 4px 2px">"Disciplina comercial" pondera cumplimiento de minutas (50%), compromisos cumplidos (30%) y % de asesores con mejora de actividad semana a semana (20%) — mide efecto de la gestión, no solo cantidad de minutas cargadas.</div>
   </div>`;
 
   return kpis + table;
