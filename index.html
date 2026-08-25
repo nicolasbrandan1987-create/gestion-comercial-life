@@ -211,6 +211,13 @@
    ========================================================================== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxYiJgQvjDz5JAbOynemyGNjiN9v8lCFZXTzMe6WXFzd5SMP4iXE1nTOp7OHI1Wp2Yt/exec';
 const DEMO_MODE = BACKEND_URL.indexOf('PEGA_TU_URL_AQUI') !== -1;
+
+/* Código de acceso a las vistas Jefe Zonal y Gerencial (ven datos de varios supervisores/toda la organización).
+   Esto NO es seguridad real — el código queda visible en el código fuente de la página para cualquiera
+   que sepa buscarlo. Es un freno para que un asesor o un curioso no entre por accidente/casualidad,
+   no una defensa contra alguien que busque específicamente saltearlo. */
+const CODIGO_ZONAL = 'zonal2026';
+const CODIGO_GERENCIAL = 'gerencial2026';
 const LS_KEY = 'gcl_demo_data_v1';
 
 /* ---------------------------- Roster inicial (desde Nómina Junio 2026 FVD LIFE) ----------------------------
@@ -743,8 +750,16 @@ function screenLogin(){
           ${zonas.map(z=>`<option value="${escAttr(z)}">${esc(z)}</option>`).join('')}
         </select>
       </div>
+      <div class="field">
+        <label>Código de acceso</label>
+        <input type="password" id="codZonal" placeholder="Te lo pasa Nico">
+      </div>
       <button class="btn outline" style="width:100%;margin-bottom:10px" id="btnEntrarZonal">Entrar como Jefe Zonal</button>
       <div style="text-align:center;color:var(--muted);font-size:12px;margin:14px 0;">— o —</div>
+      <div class="field">
+        <label>Código de acceso Gerencial</label>
+        <input type="password" id="codGerencial" placeholder="Te lo pasa Nico">
+      </div>
       <button class="btn gold" style="width:100%" id="btnEntrarGer">Entrar a la vista Gerencial</button>
       ${supervisores.length===0?'<div class="banner" style="margin-top:18px">Todavía no hay supervisores cargados. Entrá a la vista Gerencial → Configuración para cargar el roster de asesores.</div>':''}
     </div>
@@ -1582,10 +1597,16 @@ function wireEvents(){
     if(!v) return alert('Elegí tu nombre de la lista.');
     go({screen:'supHome', role:'supervisor', supervisorName:v});
   };
-  if($('#btnEntrarGer')) $('#btnEntrarGer').onclick = ()=> go({screen:'gerencial', role:'gerencial', gerTab:'ranking'});
+  if($('#btnEntrarGer')) $('#btnEntrarGer').onclick = ()=>{
+    const cod = $('#codGerencial').value;
+    if(cod !== CODIGO_GERENCIAL) return alert('Código de acceso incorrecto.');
+    go({screen:'gerencial', role:'gerencial', gerTab:'ranking'});
+  };
   if($('#btnEntrarZonal')) $('#btnEntrarZonal').onclick = ()=>{
     const v = $('#selZona').value;
     if(!v) return alert('Elegí tu zona de la lista.');
+    const cod = $('#codZonal').value;
+    if(cod !== CODIGO_ZONAL) return alert('Código de acceso incorrecto.');
     go({screen:'jefezonal', role:'jefezonal', zona:v, gerTab:'ranking'});
   };
 
