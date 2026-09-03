@@ -710,7 +710,7 @@ function compromisosPendientesPrevios(asesor, supervisor, semanaActual){
 }
 
 /* ---------------------------- Estado de navegación ---------------------------- */
-let NAV = {screen:'login', role:null, supervisorName:null, zona:null, asesor:null, gerTab:'ranking'};
+let NAV = {screen:'login', role:null, supervisorName:null, zona:null, asesor:null, gerTab:'ranking', zonaGerencial:'', soloSinMinuta:false, volverA:'supHome'};
 
 function go(partial){ NAV = Object.assign({}, NAV, partial); render(); }
 
@@ -846,7 +846,7 @@ function screenCarteraAsesor(){
   const asesorRow = DATA.roster.find(r=>r.Asesor===NAV.asesor && r.Supervisor===NAV.supervisorName);
   const cartera = carteraDe(asesorRow?.Legajo);
   return `
-  <button class="back-link" id="btnBackHome">← Volver a tu equipo</button>
+  <button class="back-link" id="btnBackHome">← ${NAV.role==='jefezonal'?'Volver':'Volver a tu equipo'}</button>
   <div class="card">
     <h2>${esc(NAV.asesor)} — Cartera vigente</h2>
     <div style="color:var(--muted);font-size:13px;margin-top:3px">Todas las pólizas activas, cliente por cliente.</div>
@@ -892,7 +892,7 @@ function screenCarteraAsesor(){
 function screenHistorialAsesor(){
   const ms = minutasDe(NAV.asesor, NAV.supervisorName).slice().sort((a,b)=> a.Semana<b.Semana?1:-1);
   return `
-  <button class="back-link" id="btnBackHome">← Volver a tu equipo</button>
+  <button class="back-link" id="btnBackHome">← ${NAV.role==='jefezonal'?'Volver':'Volver a tu equipo'}</button>
   <div class="card">
     <h2>${esc(NAV.asesor)} — Historial de reuniones</h2>
     <div style="color:var(--muted);font-size:13px;margin-top:3px">${ms.length} minuta${ms.length===1?'':'s'} cargada${ms.length===1?'':'s'}, de más reciente a más vieja.</div>
@@ -941,7 +941,7 @@ function screenMicro(){
   try{ estadosGuardados = minuta ? JSON.parse(minuta.MicroseguimientoJSON||'{}') : {}; }catch(e){}
 
   return `
-  <button class="back-link" id="btnBackHome">← Volver a tu equipo</button>
+  <button class="back-link" id="btnBackHome">← ${NAV.role==='jefezonal'?'Volver':'Volver a tu equipo'}</button>
   <div class="card">
     <h2>${esc(NAV.asesor)} — chequeo rápido</h2>
     <div style="color:var(--muted);font-size:13px;margin-top:3px">No es otra reunión — 1 minuto para ver cómo vienen los compromisos de esta semana.</div>
@@ -1000,7 +1000,7 @@ function screenFormulario(){
   if(!compromisosNuevos.length) compromisosNuevos = [{}];
 
   return `
-  <button class="back-link" id="btnBackHome">← Volver a tu equipo</button>
+  <button class="back-link" id="btnBackHome">← ${NAV.role==='jefezonal'?'Volver':'Volver a tu equipo'}</button>
   <div class="card">
     <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;align-items:center">
       <div>
@@ -1342,6 +1342,7 @@ function compromisoRow(c,i){
 /* ---------------------------- Pantalla: Gerencial ---------------------------- */
 function screenGerencial(){
   const tabs = [['ranking','Ranking de supervisores'],['alertas','Alertas globales'],['config','Configuración']];
+  const zonas = [...new Set(DATA.roster.map(r=>r.Zona).filter(Boolean))].sort();
   return `
   <div class="hero">
     <div class="eyebrow"><span class="bar"></span>SWISS MEDICAL SEGUROS · DIVISIÓN VIDA</div>
@@ -1351,13 +1352,21 @@ function screenGerencial(){
   <div class="tabbar">
     ${tabs.map(([k,l])=>`<button class="tab ${NAV.gerTab===k?'active':''}" data-ger="${k}">${l}</button>`).join('')}
   </div>
-  <div id="gerBody">${NAV.gerTab==='ranking'?gerRanking():NAV.gerTab==='alertas'?gerAlertas():gerConfig()}</div>
+  ${NAV.gerTab!=='config' && zonas.length>1 ? `
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+    <label style="margin:0;text-transform:none;font-size:13px;color:var(--text);font-weight:600">Zona:</label>
+    <select id="f_ZonaGerencial" style="width:auto;padding:6px 10px">
+      <option value="">Todas</option>
+      ${zonas.map(z=>`<option value="${escAttr(z)}" ${NAV.zonaGerencial===z?'selected':''}>${esc(z)}</option>`).join('')}
+    </select>
+  </div>` : ''}
+  <div id="gerBody">${NAV.gerTab==='ranking'?gerRanking(NAV.zonaGerencial||null):NAV.gerTab==='alertas'?gerAlertas(NAV.zonaGerencial||null):gerConfig()}</div>
   `;
 }
 
 /* ---------------------------- Pantalla: Jefe Zonal ---------------------------- */
 function screenJefeZonal(){
-  const tabs = [['ranking','Supervisores de mi zona'],['alertas','Dónde tengo que mirar']];
+  const tabs = [['ranking','Supervisores de mi zona'],['actividad','Actividad del equipo'],['alertas','Dónde tengo que mirar']];
   return `
   <div class="hero">
     <div class="eyebrow"><span class="bar"></span>SWISS MEDICAL SEGUROS · DIVISIÓN VIDA</div>
@@ -1367,8 +1376,47 @@ function screenJefeZonal(){
   <div class="tabbar">
     ${tabs.map(([k,l])=>`<button class="tab ${NAV.gerTab===k?'active':''}" data-ger="${k}">${l}</button>`).join('')}
   </div>
-  <div id="gerBody">${NAV.gerTab==='alertas'?gerAlertas(NAV.zona):gerRanking(NAV.zona)}</div>
+  <div id="gerBody">${NAV.gerTab==='alertas'?gerAlertas(NAV.zona):NAV.gerTab==='actividad'?gerActividadEquipo(NAV.zona):gerRanking(NAV.zona)}</div>
   `;
+}
+
+function gerActividadEquipo(zonaFiltro){
+  let roster = zonaFiltro ? DATA.roster.filter(r=>r.Zona===zonaFiltro) : DATA.roster;
+  const semanaAct = currentSemana();
+  const filas = roster.map(a=>{
+    const ms = minutasDe(a.Asesor, a.Supervisor);
+    const ult = ms[ms.length-1] || null;
+    return {
+      asesor: a.Asesor, supervisor: a.Supervisor,
+      llamados: ult ? n(ult.Llamados) : null,
+      entrevistas: ult ? n(ult.Entrevistas) : null,
+      ultimaSemana: ult ? ult.Semana : null,
+      seReunioEstaSemana: !!(ult && ult.Semana===semanaAct)
+    };
+  }).sort((a,b)=> (b.llamados||0)-(a.llamados||0));
+
+  const reunidos = filas.filter(f=>f.seReunioEstaSemana).length;
+
+  return `
+  <div class="grid grid-3" style="margin-bottom:16px">
+    <div class="kpi"><div class="num">${filas.length}</div><div class="lbl">Asesores en la zona</div></div>
+    <div class="kpi"><div class="num" style="color:${reunidos===filas.length?'var(--ok)':'var(--warn)'}">${reunidos}/${filas.length}</div><div class="lbl">Se reunieron esta semana</div></div>
+    <div class="kpi"><div class="num">${filas.length?Math.round(filas.reduce((s,f)=>s+(f.llamados||0),0)/filas.length):0}</div><div class="lbl">Llamados promedio (última minuta)</div></div>
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Asesor</th><th>Supervisor</th><th>Llamados</th><th>Entrevistas</th><th>Última minuta</th><th>¿Esta semana?</th><th></th></tr></thead>
+    <tbody>
+      ${filas.map(f=>`<tr>
+        <td><b>${esc(f.asesor)}</b></td>
+        <td>${esc(f.supervisor)}</td>
+        <td>${f.llamados===null?'—':f.llamados}</td>
+        <td>${f.entrevistas===null?'—':f.entrevistas}</td>
+        <td>${f.ultimaSemana?esc(f.ultimaSemana):'Nunca'}</td>
+        <td>${f.seReunioEstaSemana?'<span class="badge ok">Sí</span>':'<span class="badge warn">No</span>'}</td>
+        <td>${f.ultimaSemana?`<button class="btn outline sm" data-ver-minuta="1" data-asesor="${escAttr(f.asesor)}" data-supervisor="${escAttr(f.supervisor)}">Ver</button>`:''}</td>
+      </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--muted)">Sin asesores en esta zona</td></tr>`}
+    </tbody>
+  </table></div></div>`;
 }
 
 function gerRanking(zonaFiltro){
@@ -1381,14 +1429,17 @@ function gerRanking(zonaFiltro){
   const semanaAct = currentSemana();
   let totalAsesores=0, conMinutaEstaSemana=0, rojo=0;
 
-  const rows = supervisores.map(sup=>{
+  let rows = supervisores.map(sup=>{
     const asesores = rosterScope.filter(r=>r.Supervisor===sup);
     totalAsesores += asesores.length;
-    let cargaron=0, cumplidos=0, totalComp=0, rojoSup=0, mejoraron=0, conDatosTendencia=0;
+    let cargaron=0, cumplidos=0, totalComp=0, rojoSup=0, mejoraron=0, conDatosTendencia=0, ultimaMinuta=null;
     asesores.forEach(a=>{
       const ms = minutasDe(a.Asesor, a.Supervisor);
       const ult = ms[ms.length-1];
-      if(ult && ult.Semana===semanaAct){ cargaron++; conMinutaEstaSemana++; }
+      if(ult){
+        if(ult.Semana===semanaAct){ cargaron++; conMinutaEstaSemana++; }
+        if(!ultimaMinuta || ult.Semana>ultimaMinuta) ultimaMinuta = ult.Semana;
+      }
       const {nivel} = computeAlertas(a);
       if(nivel==='bad'){ rojoSup++; rojo++; }
       if(ms.length>=2){
@@ -1406,8 +1457,10 @@ function gerRanking(zonaFiltro){
     const pctCumpl = totalComp? Math.round(100*cumplidos/totalComp) : null;
     const pctEfecto = conDatosTendencia? Math.round(100*mejoraron/conDatosTendencia) : null;
     const disciplina = Math.round((pctCarga*0.5) + ((pctCumpl===null?pctCarga:pctCumpl)*0.3) + ((pctEfecto===null?pctCarga:pctEfecto)*0.2));
-    return {sup, asesores:asesores.length, pctCarga, pctCumpl, pctEfecto, rojoSup, disciplina};
+    return {sup, asesores:asesores.length, pctCarga, pctCumpl, pctEfecto, rojoSup, disciplina, ultimaMinuta};
   }).sort((a,b)=>b.disciplina-a.disciplina);
+
+  if(NAV.soloSinMinuta) rows = rows.filter(r=>r.pctCarga<100);
 
   const kpis = `
   <div class="grid grid-4" style="margin-bottom:18px">
@@ -1436,22 +1489,31 @@ function gerRanking(zonaFiltro){
       </div>
     </div>
     <p style="font-size:12px;color:var(--muted);margin-top:12px">Por qué se arma así: cargar minutas no sirve de nada si los compromisos no se cumplen, y cumplir compromisos no sirve si la actividad del asesor no mejora. El puntaje castiga a un supervisor que solo "completa el formulario" sin que eso cambie nada en su equipo.</p>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">Nota sobre el "% minuta esta semana": si dice 0% pero el supervisor ya cargó una minuta, es porque esa minuta es de una semana anterior a la actual (la semana empieza el lunes) — mirá la columna "Última minuta" para ver la fecha real.</p>
   </details>`;
+
+  const filtroAvance = `
+  <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;font-size:13px;color:var(--text)">
+    <input type="checkbox" id="f_SoloSinMinuta" ${NAV.soloSinMinuta?'checked':''} style="width:16px;height:16px">
+    Mostrar solo supervisores sin minuta cargada esta semana
+  </label>`;
 
   const table = `
   ${explicacion}
+  ${filtroAvance}
   <div class="card"><div class="table-wrap"><table>
-    <thead><tr><th>Supervisor</th><th>Asesores</th><th>% minuta esta semana</th><th>% compromisos cumplidos</th><th>% con mejora de actividad</th><th>En alerta</th><th>Disciplina comercial</th></tr></thead>
+    <thead><tr><th>Supervisor</th><th>Asesores</th><th>% minuta esta semana</th><th>Última minuta</th><th>% compromisos cumplidos</th><th>% con mejora de actividad</th><th>En alerta</th><th>Disciplina comercial</th></tr></thead>
     <tbody>
       ${rows.map(r=>`<tr>
         <td><b>${esc(r.sup)}</b></td>
         <td>${r.asesores}</td>
         <td>${r.pctCarga}%</td>
+        <td>${r.ultimaMinuta?esc(r.ultimaMinuta):'Nunca'}</td>
         <td>${r.pctCumpl===null?'—':r.pctCumpl+'%'}</td>
         <td>${r.pctEfecto===null?'—':r.pctEfecto+'%'}</td>
         <td>${r.rojoSup? `<span class="badge bad">${r.rojoSup}</span>` : '<span class="badge ok">0</span>'}</td>
         <td><b>${r.disciplina}</b>/100</td>
-      </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--muted)">Sin supervisores cargados</td></tr>`}
+      </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin supervisores para mostrar</td></tr>`}
     </tbody>
   </table></div>
   </div>`;
@@ -1939,7 +2001,10 @@ function wireEvents(){
 
   if($('#btnLogout')) $('#btnLogout').onclick = ()=> go({screen:'login', role:null, supervisorName:null, zona:null, asesor:null});
   if($('#btnBack')) $('#btnBack').onclick = ()=> go({screen:'login', role:null, supervisorName:null, zona:null});
-  if($('#btnBackHome')) $('#btnBackHome').onclick = ()=> go({screen:'supHome', asesor:null});
+  if($('#btnBackHome')) $('#btnBackHome').onclick = ()=> {
+    if(NAV.role==='jefezonal') go({screen:'jefezonal', gerTab:'actividad', asesor:null, supervisorName:null});
+    else go({screen:'supHome', asesor:null});
+  };
 
   if($('#btnEntrarSup')) $('#btnEntrarSup').onclick = ()=>{
     const v = $('#selSupervisor').value;
@@ -1965,6 +2030,9 @@ function wireEvents(){
   $$('[data-historial]').forEach(b=> b.onclick = ()=> go({screen:'historial', asesor:b.getAttribute('data-historial')}));
 
   $$('[data-ger]').forEach(b=> b.onclick = ()=> go({gerTab:b.getAttribute('data-ger')}));
+  if($('#f_ZonaGerencial')) $('#f_ZonaGerencial').onchange = ()=> go({zonaGerencial: $('#f_ZonaGerencial').value});
+  if($('#f_SoloSinMinuta')) $('#f_SoloSinMinuta').onchange = ()=> go({soloSinMinuta: $('#f_SoloSinMinuta').checked});
+  $$('[data-ver-minuta]').forEach(b=> b.onclick = ()=> go({screen:'historial', asesor:b.getAttribute('data-asesor'), supervisorName:b.getAttribute('data-supervisor')}));
 
   // --- formulario: seguimiento de compromisos previos ---
   $$('.seg-estado').forEach(b=> b.onclick = ()=>{
