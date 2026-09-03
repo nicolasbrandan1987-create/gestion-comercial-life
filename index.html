@@ -309,6 +309,16 @@ function jsonp(url){
   });
 }
 
+function normalizarFecha(v){
+  if(v===undefined || v===null || v==='') return v;
+  const s = String(v);
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : s;
+}
+function normalizarFechasMinutas(minutas){
+  (minutas||[]).forEach(m=>{ m.Semana = normalizarFecha(m.Semana); });
+}
+
 async function apiLoad(){
   if(DEMO_MODE){ loadLocal(); return DATA; }
   const data = await jsonp(BACKEND_URL);
@@ -316,6 +326,7 @@ async function apiLoad(){
   if(normalizarPreguntas(data.config)) apiSaveConfig(data.config);
   if(!data.roster) data.roster = [];
   if(backfillLegajos(data.roster)) apiSaveRoster(data.roster);
+  normalizarFechasMinutas(data.minutas);
   DATA = data;
   return DATA;
 }
