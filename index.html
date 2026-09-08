@@ -900,6 +900,52 @@ function screenCarteraAsesor(){
 }
 
 /* ---------------------------- Pantalla: Historial de reuniones del asesor ---------------------------- */
+function resumenSemanaHTML(m, anterior, seguimientoDeEstos){
+  let compromisos = []; try{ compromisos = JSON.parse(m.CompromisosJSON||'[]'); }catch(e){}
+  let respuestas = {}; try{ respuestas = JSON.parse(m.RespuestasCoachingJSON||'{}'); }catch(e){}
+  const preguntasBanco = (DATA.config.preguntasCoaching||[]).map(p=> typeof p==='string'?{texto:p}:p);
+  const delta = (campo)=>{
+    if(!anterior) return '';
+    const d = n(m[campo]) - n(anterior[campo]);
+    if(d===0) return '';
+    return ` <span style="font-size:11px;color:${d>0?'var(--ok)':'var(--bad)'}">(${d>0?'▲':'▼'}${Math.abs(d)} vs. sem. anterior)</span>`;
+  };
+  return `
+    <div class="grid grid-4" style="margin-top:12px">
+      <div class="kpi"><div class="num" style="font-size:18px">${n(m.Llamados)}</div><div class="lbl">Llamados${delta('Llamados')}</div></div>
+      <div class="kpi"><div class="num" style="font-size:18px">${n(m.ReferidosSolicitados)}</div><div class="lbl">Referidos pedidos${delta('ReferidosSolicitados')}</div></div>
+      <div class="kpi"><div class="num" style="font-size:18px">${n(m.Cotizaciones)}</div><div class="lbl">Cotizaciones${delta('Cotizaciones')}</div></div>
+      <div class="kpi"><div class="num" style="font-size:18px">${fmtMoney(n(m.PrimaSemana))}</div><div class="lbl">Prima cerrada esa semana</div></div>
+      <div class="kpi"><div class="num" style="font-size:18px">${n(m.ProspeccionLinkedIn)+n(m.ProspeccionInstagram)}</div><div class="lbl">Prospección redes${delta('ProspeccionLinkedIn')}</div></div>
+      <div class="kpi"><div class="num" style="font-size:18px">${n(m.ProspeccionEmpresas)}</div><div class="lbl">Prospección empresas${delta('ProspeccionEmpresas')}</div></div>
+    </div>
+    ${Object.keys(respuestas).filter(k=>respuestas[k]).length ? `
+    <div style="margin-top:14px">
+      <label style="margin-bottom:8px">Coaching</label>
+      ${Object.keys(respuestas).filter(k=>respuestas[k]).map(k=>{
+        const preg = preguntasBanco[Number(k)];
+        return `<div style="margin-bottom:8px"><div style="font-size:12.5px;font-weight:600;color:var(--text)">${preg?esc(preg.texto):'Pregunta'}</div><div style="font-size:12.5px;color:var(--muted)">${esc(respuestas[k])}</div></div>`;
+      }).join('')}
+    </div>` : `<div style="margin-top:14px;font-size:12px;color:var(--muted)">No se respondieron preguntas de coaching esa semana.</div>`}
+    ${m.HallazgoClave ? `<div class="banner info" style="margin-top:10px"><b>Hallazgo clave:</b> ${esc(m.HallazgoClave)}</div>` : ''}
+    ${compromisos.length ? `
+    <div style="margin-top:14px">
+      <label style="margin-bottom:8px">Compromisos de esa semana</label>
+      ${compromisos.map((c,ci)=>{
+        const seg = (seguimientoDeEstos||{})[ci];
+        return `<div class="info-card">
+          <b>${esc(c.texto)}</b>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(c.responsable||'')} · vence ${esc(c.fecha||'')}</div>
+          ${c.indicador?`<div style="font-size:12px;color:var(--muted);margin-top:2px"><b>Indicador de éxito:</b> ${esc(c.indicador)}</div>`:''}
+          ${c.resultadoEsperado?`<div style="font-size:12px;color:var(--muted);margin-top:2px"><b>Resultado esperado:</b> ${esc(c.resultadoEsperado)}</div>`:''}
+          ${seg && seg.estado ? `<div style="margin-top:6px"><span class="badge ${seg.estado==='Cumplido'?'ok':seg.estado==='Parcial'?'warn':'bad'}">${esc(seg.estado)}</span>${seg.motivo?` <span style="font-size:12px;color:var(--muted)">— ${esc(seg.motivo)}${seg.causa?` (${esc(seg.causa)})`:''}</span>`:''}</div>` : `<div style="margin-top:6px;font-size:11.5px;color:var(--muted)">Sin seguimiento todavía — se revisa en la próxima reunión.</div>`}
+        </div>`;
+      }).join('')}
+    </div>` : ''}
+    ${m.CompromisoSupervisor ? `<div style="margin-top:10px;font-size:12.5px"><b>Compromiso del supervisor:</b> ${esc(m.CompromisoSupervisor)}</div>` : ''}
+  `;
+}
+
 function screenHistorialAsesor(){
   const ms = minutasDe(NAV.asesor, NAV.supervisorName).slice().sort((a,b)=> a.Semana<b.Semana?1:-1);
   return `
@@ -909,54 +955,14 @@ function screenHistorialAsesor(){
     <div style="color:var(--muted);font-size:13px;margin-top:3px">${ms.length} minuta${ms.length===1?'':'s'} cargada${ms.length===1?'':'s'}, de más reciente a más vieja.</div>
   </div>
   ${!ms.length ? `<div class="banner info">Todavía no hay minutas cargadas con este asesor.</div>` : ms.map((m,i)=>{
-    let compromisos = []; try{ compromisos = JSON.parse(m.CompromisosJSON||'[]'); }catch(e){}
-    let respuestas = {}; try{ respuestas = JSON.parse(m.RespuestasCoachingJSON||'{}'); }catch(e){}
-    const preguntasBanco = (DATA.config.preguntasCoaching||[]).map(p=> typeof p==='string'?{texto:p}:p);
     const anterior = ms[i+1]; // más vieja que esta (array ordenado de más nueva a más vieja)
     const siguiente = ms[i-1]; // más nueva que esta — ahí es donde se hizo el seguimiento de ESTOS compromisos
     let seguimientoDeEstos = {};
     if(siguiente){ try{ seguimientoDeEstos = JSON.parse(siguiente.SeguimientoCompromisosJSON||'{}'); }catch(e){} }
-    const delta = (campo)=>{
-      if(!anterior) return '';
-      const d = n(m[campo]) - n(anterior[campo]);
-      if(d===0) return '';
-      return ` <span style="font-size:11px;color:${d>0?'var(--ok)':'var(--bad)'}">(${d>0?'▲':'▼'}${Math.abs(d)} vs. sem. anterior)</span>`;
-    };
     return `
     <details class="collapsible">
       <summary>Semana del ${esc(m.Semana)} ${m.Foco?` — foco: ${esc(m.Foco)}`:''}</summary>
-      <div class="grid grid-4" style="margin-top:12px">
-        <div class="kpi"><div class="num" style="font-size:18px">${n(m.Llamados)}</div><div class="lbl">Llamados${delta('Llamados')}</div></div>
-        <div class="kpi"><div class="num" style="font-size:18px">${n(m.ReferidosSolicitados)}</div><div class="lbl">Referidos pedidos${delta('ReferidosSolicitados')}</div></div>
-        <div class="kpi"><div class="num" style="font-size:18px">${n(m.Cotizaciones)}</div><div class="lbl">Cotizaciones${delta('Cotizaciones')}</div></div>
-        <div class="kpi"><div class="num" style="font-size:18px">${fmtMoney(n(m.PrimaSemana))}</div><div class="lbl">Prima cerrada esa semana</div></div>
-        <div class="kpi"><div class="num" style="font-size:18px">${n(m.ProspeccionLinkedIn)+n(m.ProspeccionInstagram)}</div><div class="lbl">Prospección redes${delta('ProspeccionLinkedIn')}</div></div>
-        <div class="kpi"><div class="num" style="font-size:18px">${n(m.ProspeccionEmpresas)}</div><div class="lbl">Prospección empresas${delta('ProspeccionEmpresas')}</div></div>
-      </div>
-      ${Object.keys(respuestas).filter(k=>respuestas[k]).length ? `
-      <div style="margin-top:14px">
-        <label style="margin-bottom:8px">Coaching</label>
-        ${Object.keys(respuestas).filter(k=>respuestas[k]).map(k=>{
-          const preg = preguntasBanco[Number(k)];
-          return `<div style="margin-bottom:8px"><div style="font-size:12.5px;font-weight:600;color:var(--text)">${preg?esc(preg.texto):'Pregunta'}</div><div style="font-size:12.5px;color:var(--muted)">${esc(respuestas[k])}</div></div>`;
-        }).join('')}
-      </div>` : `<div style="margin-top:14px;font-size:12px;color:var(--muted)">No se respondieron preguntas de coaching esta semana.</div>`}
-      ${m.HallazgoClave ? `<div class="banner info" style="margin-top:10px"><b>Hallazgo clave:</b> ${esc(m.HallazgoClave)}</div>` : ''}
-      ${compromisos.length ? `
-      <div style="margin-top:14px">
-        <label style="margin-bottom:8px">Compromisos de esa semana</label>
-        ${compromisos.map((c,ci)=>{
-          const seg = seguimientoDeEstos[ci];
-          return `<div class="info-card">
-            <b>${esc(c.texto)}</b>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(c.responsable||'')} · vence ${esc(c.fecha||'')}</div>
-            ${c.indicador?`<div style="font-size:12px;color:var(--muted);margin-top:2px"><b>Indicador de éxito:</b> ${esc(c.indicador)}</div>`:''}
-            ${c.resultadoEsperado?`<div style="font-size:12px;color:var(--muted);margin-top:2px"><b>Resultado esperado:</b> ${esc(c.resultadoEsperado)}</div>`:''}
-            ${seg && seg.estado ? `<div style="margin-top:6px"><span class="badge ${seg.estado==='Cumplido'?'ok':seg.estado==='Parcial'?'warn':'bad'}">${esc(seg.estado)}</span>${seg.motivo?` <span style="font-size:12px;color:var(--muted)">— ${esc(seg.motivo)}${seg.causa?` (${esc(seg.causa)})`:''}</span>`:''}</div>` : `<div style="margin-top:6px;font-size:11.5px;color:var(--muted)">Sin seguimiento todavía — se revisa en la próxima reunión.</div>`}
-          </div>`;
-        }).join('')}
-      </div>` : ''}
-      ${m.CompromisoSupervisor ? `<div style="margin-top:10px;font-size:12.5px"><b>Compromiso del supervisor:</b> ${esc(m.CompromisoSupervisor)}</div>` : ''}
+      ${resumenSemanaHTML(m, anterior, seguimientoDeEstos)}
     </details>`;
   }).join('')}`;
 }
@@ -1007,6 +1013,10 @@ function screenFormulario(){
   let seguimientoGuardado = {};
   try{ seguimientoGuardado = JSON.parse(minuta.SeguimientoCompromisosJSON||'{}'); }catch(e){}
 
+  const msTodasAsesor = minutasDe(NAV.asesor, NAV.supervisorName).filter(m=>m.Semana<semana).sort((a,b)=> a.Semana<b.Semana?1:-1);
+  const minutaSemanaAnterior = msTodasAsesor[0] || null;
+  const minutaDosAtras = msTodasAsesor[1] || null;
+
   const meses = mesesAntiguedad(asesorRow?.FechaIngreso);
   const etapa = etapaCurva(meses);
   const umbral = DATA.config.umbrales[etapa];
@@ -1041,6 +1051,13 @@ function screenFormulario(){
       </div>
     </div>
   </div>
+
+  ${minutaSemanaAnterior ? `
+  <details class="collapsible" open>
+    <summary>Cómo fue la reunión de la semana pasada (${esc(minutaSemanaAnterior.Semana)}${minutaSemanaAnterior.Foco?` — foco: ${esc(minutaSemanaAnterior.Foco)}`:''})</summary>
+    ${resumenSemanaHTML(minutaSemanaAnterior, minutaDosAtras, seguimientoGuardado)}
+  </details>
+  ` : ''}
 
   <div class="card">
     <div class="section-title"><span class="idx">1</span><h3>Objetivo y avance</h3><span class="hint">Semanal y mensual, para verlo juntos en la reunión</span></div>
