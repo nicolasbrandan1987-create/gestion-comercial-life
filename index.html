@@ -908,18 +908,30 @@ function screenHistorialAsesor(){
     <h2>${esc(NAV.asesor)} — Historial de reuniones</h2>
     <div style="color:var(--muted);font-size:13px;margin-top:3px">${ms.length} minuta${ms.length===1?'':'s'} cargada${ms.length===1?'':'s'}, de más reciente a más vieja.</div>
   </div>
-  ${!ms.length ? `<div class="banner info">Todavía no hay minutas cargadas con este asesor.</div>` : ms.map(m=>{
+  ${!ms.length ? `<div class="banner info">Todavía no hay minutas cargadas con este asesor.</div>` : ms.map((m,i)=>{
     let compromisos = []; try{ compromisos = JSON.parse(m.CompromisosJSON||'[]'); }catch(e){}
     let respuestas = {}; try{ respuestas = JSON.parse(m.RespuestasCoachingJSON||'{}'); }catch(e){}
     const preguntasBanco = (DATA.config.preguntasCoaching||[]).map(p=> typeof p==='string'?{texto:p}:p);
+    const anterior = ms[i+1]; // más vieja que esta (array ordenado de más nueva a más vieja)
+    const siguiente = ms[i-1]; // más nueva que esta — ahí es donde se hizo el seguimiento de ESTOS compromisos
+    let seguimientoDeEstos = {};
+    if(siguiente){ try{ seguimientoDeEstos = JSON.parse(siguiente.SeguimientoCompromisosJSON||'{}'); }catch(e){} }
+    const delta = (campo)=>{
+      if(!anterior) return '';
+      const d = n(m[campo]) - n(anterior[campo]);
+      if(d===0) return '';
+      return ` <span style="font-size:11px;color:${d>0?'var(--ok)':'var(--bad)'}">(${d>0?'▲':'▼'}${Math.abs(d)} vs. sem. anterior)</span>`;
+    };
     return `
     <details class="collapsible">
       <summary>Semana del ${esc(m.Semana)} ${m.Foco?` — foco: ${esc(m.Foco)}`:''}</summary>
       <div class="grid grid-4" style="margin-top:12px">
-        <div class="kpi"><div class="num" style="font-size:18px">${n(m.Llamados)}</div><div class="lbl">Llamados</div></div>
-        <div class="kpi"><div class="num" style="font-size:18px">${n(m.ReferidosSolicitados)}</div><div class="lbl">Referidos pedidos</div></div>
-        <div class="kpi"><div class="num" style="font-size:18px">${n(m.Cotizaciones)}</div><div class="lbl">Cotizaciones</div></div>
+        <div class="kpi"><div class="num" style="font-size:18px">${n(m.Llamados)}</div><div class="lbl">Llamados${delta('Llamados')}</div></div>
+        <div class="kpi"><div class="num" style="font-size:18px">${n(m.ReferidosSolicitados)}</div><div class="lbl">Referidos pedidos${delta('ReferidosSolicitados')}</div></div>
+        <div class="kpi"><div class="num" style="font-size:18px">${n(m.Cotizaciones)}</div><div class="lbl">Cotizaciones${delta('Cotizaciones')}</div></div>
         <div class="kpi"><div class="num" style="font-size:18px">${fmtMoney(n(m.PrimaSemana))}</div><div class="lbl">Prima cerrada esa semana</div></div>
+        <div class="kpi"><div class="num" style="font-size:18px">${n(m.ProspeccionLinkedIn)+n(m.ProspeccionInstagram)}</div><div class="lbl">Prospección redes${delta('ProspeccionLinkedIn')}</div></div>
+        <div class="kpi"><div class="num" style="font-size:18px">${n(m.ProspeccionEmpresas)}</div><div class="lbl">Prospección empresas${delta('ProspeccionEmpresas')}</div></div>
       </div>
       ${Object.keys(respuestas).length ? `
       <div style="margin-top:14px">
@@ -933,7 +945,16 @@ function screenHistorialAsesor(){
       ${compromisos.length ? `
       <div style="margin-top:14px">
         <label style="margin-bottom:8px">Compromisos de esa semana</label>
-        ${compromisos.map(c=>`<div class="info-card"><b>${esc(c.texto)}</b><div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(c.responsable||'')} · vence ${esc(c.fecha||'')}</div></div>`).join('')}
+        ${compromisos.map((c,ci)=>{
+          const seg = seguimientoDeEstos[ci];
+          return `<div class="info-card">
+            <b>${esc(c.texto)}</b>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(c.responsable||'')} · vence ${esc(c.fecha||'')}</div>
+            ${c.indicador?`<div style="font-size:12px;color:var(--muted);margin-top:2px"><b>Indicador de éxito:</b> ${esc(c.indicador)}</div>`:''}
+            ${c.resultadoEsperado?`<div style="font-size:12px;color:var(--muted);margin-top:2px"><b>Resultado esperado:</b> ${esc(c.resultadoEsperado)}</div>`:''}
+            ${seg && seg.estado ? `<div style="margin-top:6px"><span class="badge ${seg.estado==='Cumplido'?'ok':seg.estado==='Parcial'?'warn':'bad'}">${esc(seg.estado)}</span>${seg.motivo?` <span style="font-size:12px;color:var(--muted)">— ${esc(seg.motivo)}${seg.causa?` (${esc(seg.causa)})`:''}</span>`:''}</div>` : `<div style="margin-top:6px;font-size:11.5px;color:var(--muted)">Sin seguimiento todavía — se revisa en la próxima reunión.</div>`}
+          </div>`;
+        }).join('')}
       </div>` : ''}
       ${m.CompromisoSupervisor ? `<div style="margin-top:10px;font-size:12.5px"><b>Compromiso del supervisor:</b> ${esc(m.CompromisoSupervisor)}</div>` : ''}
     </details>`;
@@ -2206,6 +2227,13 @@ function wireEvents(){
 
   if($('#btnGuardar')) $('#btnGuardar').onclick = async ()=>{
     const minuta = collectMinutaFromForm();
+    let compromisosDraft = [];
+    try{ compromisosDraft = JSON.parse(minuta.CompromisosJSON||'[]'); }catch(e){}
+    const flojos = compromisosDraft.filter(c=> c.texto && !c.indicador && !c.resultadoEsperado);
+    if(flojos.length){
+      const seguir = confirm(`"${flojos[0].texto}" no tiene indicador de éxito ni resultado esperado — va a quedar difícil saber si se cumplió. ¿Guardar igual?`);
+      if(!seguir) return;
+    }
     $('#btnGuardar').disabled = true;
     $('#btnGuardar').textContent = 'Guardando…';
     try{
