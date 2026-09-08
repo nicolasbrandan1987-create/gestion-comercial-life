@@ -933,14 +933,14 @@ function screenHistorialAsesor(){
         <div class="kpi"><div class="num" style="font-size:18px">${n(m.ProspeccionLinkedIn)+n(m.ProspeccionInstagram)}</div><div class="lbl">Prospección redes${delta('ProspeccionLinkedIn')}</div></div>
         <div class="kpi"><div class="num" style="font-size:18px">${n(m.ProspeccionEmpresas)}</div><div class="lbl">Prospección empresas${delta('ProspeccionEmpresas')}</div></div>
       </div>
-      ${Object.keys(respuestas).length ? `
+      ${Object.keys(respuestas).filter(k=>respuestas[k]).length ? `
       <div style="margin-top:14px">
         <label style="margin-bottom:8px">Coaching</label>
         ${Object.keys(respuestas).filter(k=>respuestas[k]).map(k=>{
           const preg = preguntasBanco[Number(k)];
           return `<div style="margin-bottom:8px"><div style="font-size:12.5px;font-weight:600;color:var(--text)">${preg?esc(preg.texto):'Pregunta'}</div><div style="font-size:12.5px;color:var(--muted)">${esc(respuestas[k])}</div></div>`;
         }).join('')}
-      </div>` : ''}
+      </div>` : `<div style="margin-top:14px;font-size:12px;color:var(--muted)">No se respondieron preguntas de coaching esta semana.</div>`}
       ${m.HallazgoClave ? `<div class="banner info" style="margin-top:10px"><b>Hallazgo clave:</b> ${esc(m.HallazgoClave)}</div>` : ''}
       ${compromisos.length ? `
       <div style="margin-top:14px">
